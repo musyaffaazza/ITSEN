@@ -5,6 +5,8 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -19,9 +21,14 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name',
-        'email',
+        'nama',
+        'username',
         'password',
+        'role',
+        'is_active',
+        'must_change_password',
+        'privasi_disetujui_pada',
+        'privasi_versi',
     ];
 
     /**
@@ -39,10 +46,27 @@ class User extends Authenticatable
      *
      * @return array<string, string>
      */
+    public function anggota(): HasOne
+    {
+        return $this->hasOne(Anggota::class);
+    }
+
+    public function pertemuanDibuat(): HasMany
+    {
+        return $this->hasMany(Pertemuan::class, 'dibuat_oleh');
+    }
+
+    public function absensiDiubah(): HasMany
+    {
+        return $this->hasMany(Absensi::class, 'diubah_oleh');
+    }
+
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
+            'is_active' => 'boolean',
+            'must_change_password' => 'boolean',
+            'privasi_disetujui_pada' => 'datetime',
             'password' => 'hashed',
         ];
     }
