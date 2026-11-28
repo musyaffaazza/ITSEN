@@ -14,7 +14,6 @@ class Pertemuan extends Model
     protected $table = 'pertemuan';
 
     protected $fillable = [
-        'periode_id',
         'judul',
         'tanggal',
         'jam_mulai',
@@ -36,11 +35,6 @@ class Pertemuan extends Model
             'ditutup_pada' => 'datetime',
             'toleransi_menit' => 'integer',
         ];
-    }
-
-    public function periode(): BelongsTo
-    {
-        return $this->belongsTo(Periode::class);
     }
 
     public function pembuat(): BelongsTo

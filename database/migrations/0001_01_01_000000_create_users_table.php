@@ -25,22 +25,12 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        Schema::create('periode', function (Blueprint $table) {
-            $table->id();
-            $table->string('nama', 50)->unique();
-            $table->date('tanggal_mulai');
-            $table->date('tanggal_selesai');
-            $table->boolean('is_aktif')->default(false)->index();
-            $table->timestamps();
-        });
-
         Schema::create('anggota', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->unique()->constrained('users')->restrictOnDelete();
-            $table->string('nis', 20)->unique();
+            $table->string('nit', 20)->unique();
             $table->string('nama_lengkap', 100);
-            $table->string('kelas', 20)->index();
-            $table->string('jurusan', 50)->nullable();
+            $table->string('kelas_jurusan', 100)->index();
             $table->string('no_hp', 20)->nullable();
             $table->enum('status', ['aktif', 'nonaktif'])->default('aktif')->index();
             $table->timestamps();
@@ -48,21 +38,19 @@ return new class extends Migration
 
         Schema::create('pertemuan', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('periode_id')->constrained('periode')->restrictOnDelete();
             $table->string('judul', 150);
             $table->date('tanggal')->index();
             $table->time('jam_mulai');
             $table->time('jam_selesai');
             $table->unsignedSmallInteger('toleransi_menit')->default(15);
-            $table->enum('status', ['draft', 'dibuka', 'ditutup'])->default('draft')->index();
+            $table->enum('status', ['terjadwal', 'berjalan', 'selesai'])->default('terjadwal')->index();
             $table->dateTime('dibuka_pada')->nullable();
             $table->dateTime('ditutup_pada')->nullable();
             $table->enum('cara_tutup', ['manual', 'otomatis'])->nullable();
             $table->text('catatan')->nullable();
-            $table->foreignId('dibuat_oleh')->constrained('users')->restrictOnDelete();
+            $table->foreignId('dibuat_oleh')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
             $table->index(['tanggal', 'status']);
-            $table->index(['periode_id', 'tanggal']);
         });
 
         Schema::create('pengaturan', function (Blueprint $table) {
@@ -159,7 +147,6 @@ return new class extends Migration
         Schema::dropIfExists('absensi');
         Schema::dropIfExists('pertemuan');
         Schema::dropIfExists('pengaturan');
-        Schema::dropIfExists('periode');
         Schema::dropIfExists('anggota');
         Schema::dropIfExists('users');
         Schema::dropIfExists('sessions');

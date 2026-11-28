@@ -4,7 +4,7 @@
 
 | Item | Keterangan |
 |---|---|
-| Versi dokumen | 1.1 (Draft untuk review) |
+| Versi dokumen | 1.2 (Draft untuk review) |
 | Tanggal | 21 November 2026 |
 | Jenis dokumen | PRD + analisis sistem |
 | Target pembaca | Developer (pelajar SMK RPL/PPLG), pembina, dan pengurus IT Club |
@@ -15,7 +15,8 @@
 | Versi | Tanggal | Perubahan |
 |---|---|---|
 | 1.0 | 20 Nov 2026 | Draf awal |
-| 1.1 | 21 Nov 2026 | **Keputusan ditetapkan:** K-02 (login pakai username/NIS), K-04 (sesi tutup otomatis), K-08 (log penolakan), K-09 (ekspor CSV), K-10 (rumus persentase), K-13 (anggota boleh mengajukan izin/sakit), K-15 (retensi data). **Fitur baru:** F-13 Pengajuan Izin/Sakit, F-14 Periode (Tahun Ajaran), F-15 Log Aktivitas dan Log Penolakan, F-16 Privasi dan Retensi Data. **Teknis:** zona waktu WIB, Laravel Scheduler. **Database:** tabel baru `periode`, `pengajuan_izin`, `log_penolakan`, `log_aktivitas`. Kolom `users` dan `pertemuan` diubah |
+| 1.1 | 21 Nov 2026 | **Keputusan ditetapkan:** K-02 (login pakai username/NIS), K-04 (sesi tutup otomatis), K-08 (log penolakan), K-09 (ekspor CSV), K-10 (rumus persentase), K-13 (anggota boleh mengajukan izin/sakit), K-15 (retensi data). **Fitur baru:** F-13 Pengajuan Izin/Sakit, F-15 Log Aktivitas dan Log Penolakan, F-16 Privasi dan Retensi Data. **Teknis:** zona waktu WIB, Laravel Scheduler. **Database:** tabel baru `pengajuan_izin`, `log_penolakan`, `log_aktivitas`. Kolom `users` diubah |
+| 1.2 | 21 Nov 2026 | **Fitur baru:** F-14 Verifikasi Absensi oleh Admin. Absensi mandiri yang lolos validasi otomatis berstatus Menunggu, baru dihitung hadir setelah admin memverifikasi. Mencakup antrean verifikasi, verifikasi massal, penolakan dengan alasan, kirim ulang selama sesi dibuka (maks. 3 kali), dan Alpa otomatis bila ditolak lalu sesi ditutup. **Dihapus:** fitur Periode (tahun ajaran), tabel `periode`, kolom `pertemuan.periode_id`, filter dan chip periode. **Database:** kolom baru di `absensi` (`status_verifikasi`, `diverifikasi_oleh`, `diverifikasi_pada`, `alasan_penolakan`, `jumlah_kirim`). **Rumus persentase (K-10)** kini hanya menghitung absensi Terverifikasi |
 | – | – | **Tidak diambil di v1.1:** kode sesi (K-12 ditunda), penguatan foto (cap waktu dan thumbnail), peran Pembina di dalam aplikasi |
 
 ---
@@ -153,10 +154,12 @@ Angka berikut adalah usulan target dan dapat disesuaikan.
 | Lihat rekap kehadiran seluruh anggota | ✅ | ❌ |
 | Ekspor rekap (CSV) | ✅ | ❌ |
 | Lihat riwayat dan persentase kehadiran pribadi | ❌ | ✅ |
+| Memverifikasi atau menolak absensi (F-14) | ✅ | ❌ |
+| Verifikasi massal (F-14) | ✅ | ❌ |
+| Mengirim ulang absensi yang ditolak, selama sesi Dibuka (F-14) | ❌ | ✅ |
 | Atur titik koordinat sekolah dan radius | ✅ | ❌ |
 | Mengajukan izin/sakit (F-13) | ❌ | ✅ |
 | Menyetujui/menolak pengajuan izin/sakit | ✅ | ❌ |
-| Kelola periode/tahun ajaran (F-14) | ✅ | ❌ |
 | Lihat log aktivitas dan log penolakan (F-15) | ✅ | ❌ |
 
 ### 4.2 Catatan
@@ -211,11 +214,11 @@ Setiap fitur dijelaskan dengan format: tujuan, alur, aturan bisnis, validasi, da
 **Tujuan:** memberi pengurus gambaran cepat kondisi kehadiran dan akses ke seluruh fitur pengelolaan.
 
 **Isi:**
-- Kartu ringkasan: jumlah anggota aktif, jumlah pertemuan (periode aktif), sesi yang sedang dibuka, dan **pengajuan izin/sakit yang menunggu keputusan**.
-- Panel "Sesi Hari Ini": status sesi, jumlah sudah absen dibanding total anggota, tombol buka/tutup.
-- Daftar absensi terbaru (nama, waktu, status, jarak).
+- Kartu ringkasan: jumlah anggota aktif, jumlah pertemuan, sesi yang sedang dibuka, **absensi yang menunggu verifikasi**, dan **pengajuan izin/sakit yang menunggu keputusan**.
+- Panel "Sesi Hari Ini": status sesi, jumlah sudah absen dibanding total anggota, jumlah yang sudah terverifikasi, tombol buka/tutup.
+- Daftar absensi terbaru (nama, waktu, status, status verifikasi, jarak).
 - Persentase kehadiran rata-rata per pertemuan (5 pertemuan terakhir).
-- Pintasan: Tambah Anggota, Buat Pertemuan, Pengaturan Lokasi.
+- Pintasan: Antrean Verifikasi, Tambah Anggota, Buat Pertemuan, Pengaturan Lokasi.
 
 **Aturan bisnis:** data dashboard hanya dapat dilihat admin. Angka dihitung dari database saat halaman dibuka (tanpa real-time wajib; refresh manual atau berkala sudah cukup **[REKOMENDASI]**).
 
@@ -228,12 +231,12 @@ Setiap fitur dijelaskan dengan format: tujuan, alur, aturan bisnis, validasi, da
 **Isi:**
 - Sapaan dan nama anggota.
 - Kartu status sesi: "Belum ada sesi aktif" atau "Sesi aktif: [judul]" dengan tombol **Absen Sekarang**.
-- Status absensi sesi ini (belum/sudah absen, status, waktu).
-- Persentase kehadiran pribadi.
+- Status absensi sesi ini (belum/sudah absen, status, waktu) dan **status verifikasi** (Menunggu, Terverifikasi, atau Ditolak beserta alasan).
+- Persentase kehadiran pribadi (hanya absensi Terverifikasi) dan jumlah absensi yang masih menunggu verifikasi.
 - 5 riwayat terakhir.
 - Tautan "Ajukan Izin/Sakit" dan status pengajuan terakhir (Menunggu/Disetujui/Ditolak).
 
-**Aturan bisnis:** tombol Absen Sekarang hanya aktif jika ada sesi dibuka dan anggota belum absen pada sesi itu.
+**Aturan bisnis:** tombol Absen Sekarang hanya aktif jika ada sesi dibuka dan anggota belum absen pada sesi itu. Jika absensinya **Ditolak** admin dan sesi masih Dibuka, tombol berubah menjadi **Absen Ulang**.
 
 ### F-04. Manajemen Data Anggota
 
@@ -257,7 +260,7 @@ Setiap fitur dijelaskan dengan format: tujuan, alur, aturan bisnis, validasi, da
 - Nomor HP opsional, format angka 8–15 digit.
 - Username login anggota dibuat otomatis dari NIS (unik).
 
-**Kondisi gagal:** NIS atau email sudah dipakai menampilkan pesan "NIS sudah terdaftar". Gagal menyimpan salah satu data (anggota atau akun) membatalkan keduanya (transaksi database).
+**Kondisi gagal:** NIS sudah dipakai menampilkan pesan "NIS sudah terdaftar". Gagal menyimpan salah satu data (anggota atau akun) membatalkan keduanya (transaksi database).
 
 **Impor massal lewat CSV:** di luar cakupan awal. **[PERLU KONFIRMASI]** (K-03)
 
@@ -265,7 +268,7 @@ Setiap fitur dijelaskan dengan format: tujuan, alur, aturan bisnis, validasi, da
 
 **Tujuan:** setiap pertemuan IT Club menjadi satu sesi yang membatasi kapan anggota boleh absen.
 
-**Data sesi:** judul, tanggal, jam mulai, jam selesai, batas tepat waktu (menit toleransi), catatan (opsional), status sesi, dan periode (otomatis periode aktif, lihat F-14).
+**Data sesi:** judul, tanggal, jam mulai, jam selesai, batas tepat waktu (menit toleransi), catatan (opsional), dan status sesi.
 
 **Status sesi:**
 
@@ -280,7 +283,7 @@ Setiap fitur dijelaskan dengan format: tujuan, alur, aturan bisnis, validasi, da
 - **[DITETAPKAN v1.1]** (K-04) Sesi **ditutup otomatis** saat tanggal dan jam selesai terlewati (WIB), dijalankan Laravel Scheduler tiap menit. Tombol tutup manual oleh admin tetap tersedia. Penutupan otomatis memicu proses yang sama dengan penutupan manual (pemberian Alpa dan pencatatan ke log aktivitas dengan pelaku "sistem").
 - **Pengaman:** saat anggota mengirim absensi, server memeriksa juga waktu sekarang. Jika sudah melewati jam selesai, absensi ditolak meskipun Scheduler belum sempat menutup sesi.
 - Maksimal satu sesi berstatus Dibuka dalam satu waktu. **[REKOMENDASI]** (menyederhanakan alur anggota)
-- Saat sesi ditutup, anggota aktif yang belum punya catatan otomatis diberi status **Alpa** (lihat Bagian 7).
+- Saat sesi ditutup, anggota aktif yang belum punya catatan otomatis diberi status **Alpa** (lihat Bagian 7). Absensi berstatus **Ditolak** yang belum dikirim ulang juga menjadi Alpa. Absensi berstatus **Menunggu** tidak berubah dan tetap dapat diverifikasi setelah sesi ditutup (F-14).
 - Sesi yang sudah punya data absensi tidak boleh dihapus. Cukup ditutup atau dibatalkan. **[REKOMENDASI]**
 - Sesi yang sudah ditutup dapat dibuka kembali oleh admin. **[PERLU KONFIRMASI]** (K-05)
 
@@ -303,7 +306,7 @@ Setiap fitur dijelaskan dengan format: tujuan, alur, aturan bisnis, validasi, da
 
 **Kondisi gagal:** lihat tabel penanganan di Bagian 6.4.
 
-**Verifikasi wajah otomatis:** di luar cakupan. Pemeriksaan foto dilakukan manual oleh pengurus. **[REKOMENDASI]**
+**Verifikasi wajah otomatis:** di luar cakupan. Pemeriksaan foto dilakukan manual oleh admin lewat **Verifikasi Absensi (F-14)**. **[DITETAPKAN v1.2]**
 
 ### F-07. Pengambilan Lokasi GPS
 
@@ -323,15 +326,15 @@ Setiap fitur dijelaskan dengan format: tujuan, alur, aturan bisnis, validasi, da
 **Aturan bisnis:**
 - Jarak dihitung dengan rumus Haversine antara titik anggota dan titik sekolah (dari tabel `pengaturan`).
 - **Perhitungan yang sah dilakukan di server.** Hitungan di browser hanya untuk memberi umpan balik cepat kepada pengguna dan tidak dipercaya.
-- Jika jarak ≤ radius, absensi diterima. Jika lebih, absensi ditolak dan tidak ada data yang disimpan.
+- Jika jarak ≤ radius, absensi lolos validasi lokasi dan masuk antrean verifikasi admin (F-14). Jika lebih, absensi ditolak dan tidak ada data yang disimpan.
 - Nilai default radius: **[PERLU KONFIRMASI]** (K-07). Contoh awal 100 m, disesuaikan luas sekolah dan akurasi GPS di lapangan.
 - Absensi ditolak karena di luar radius tetap dicatat sebagai log percobaan (tanpa foto) untuk bahan evaluasi. **[PERLU KONFIRMASI]** (K-08)
 
 ### F-09. Riwayat Absensi
 
-**Anggota:** melihat daftar riwayat pribadi (tanggal, judul pertemuan, status, waktu absen) dengan filter bulan. Dapat membuka detail (foto dan lokasi miliknya).
+**Anggota:** melihat daftar riwayat pribadi (tanggal, judul pertemuan, status, status verifikasi, waktu absen) dengan filter bulan. Dapat membuka detail (foto dan lokasi miliknya).
 
-**Admin:** melihat seluruh data absensi dengan filter pertemuan, tanggal, anggota, dan status. Detail memuat foto, titik lokasi di peta Leaflet, jarak dari sekolah, akurasi GPS, dan waktu.
+**Admin:** melihat seluruh data absensi dengan filter pertemuan, tanggal, anggota, status, dan status verifikasi. Detail memuat foto, titik lokasi di peta Leaflet, jarak dari sekolah, akurasi GPS, waktu, dan tombol Verifikasi/Tolak bila masih Menunggu.
 
 **Aturan bisnis:** anggota tidak dapat mengubah atau menghapus riwayat. Admin dapat mengoreksi status dengan alasan wajib diisi. Setiap koreksi dicatat di log aktivitas (pelaku, waktu, status lama dan baru, alasan). **[REKOMENDASI]**
 
@@ -342,7 +345,8 @@ Setiap fitur dijelaskan dengan format: tujuan, alur, aturan bisnis, validasi, da
 **Isi:**
 - Rekap per pertemuan: jumlah per status.
 - Rekap per anggota: jumlah Hadir/Terlambat/Izin/Sakit/Alpa dan persentase kehadiran.
-- Filter periode (tahun ajaran, default periode aktif) dan rentang tanggal.
+- Kolom "Menunggu verifikasi" terpisah pada rekap per pertemuan dan per anggota.
+- Filter rentang tanggal.
 - **[DITETAPKAN v1.1]** (K-09) Ekspor ke **CSV** (UTF-8, dapat dibuka di Excel) mengikuti filter yang sedang dipakai. Dapat dilakukan Admin. Format Excel (.xlsx) atau PDF ditunda karena butuh paket tambahan.
 
 **Rumus persentase kehadiran:** **[DITETAPKAN v1.1]** (K-10)
@@ -350,10 +354,10 @@ Setiap fitur dijelaskan dengan format: tujuan, alur, aturan bisnis, validasi, da
 Rumus:
 
 ```
-Persentase Kehadiran = (Hadir + Terlambat) / Total pertemuan yang sudah ditutup × 100%
+Persentase Kehadiran = (Hadir + Terlambat yang Terverifikasi) / Total pertemuan yang sudah ditutup × 100%
 ```
 
-Izin dan Sakit tetap dihitung sebagai bagian dari total pertemuan (tidak dihitung hadir). Hanya pertemuan berstatus Ditutup pada periode yang dipilih yang masuk penyebut. Rumus yang sama dipakai di dashboard anggota, dashboard admin, rekap, dan ekspor.
+Izin dan Sakit tetap dihitung sebagai bagian dari total pertemuan (tidak dihitung hadir). Hanya pertemuan berstatus Ditutup (pada rentang tanggal yang dipilih, bila ada filter) yang masuk penyebut. **Hadir dan Terlambat hanya dihitung bila Terverifikasi (F-14).** Absensi yang masih Menunggu atau Ditolak tidak dihitung hadir dan ditampilkan terpisah. Alpa dihitung apa pun status verifikasinya. Rumus yang sama dipakai di dashboard anggota, dashboard admin, rekap, dan ekspor.
 
 ### F-11. Pengaturan Lokasi dan Radius GPS
 
@@ -409,7 +413,7 @@ Izin dan Sakit tetap dihitung sebagai bagian dari total pertemuan (tidak dihitun
 |---|---|
 | Pertemuan yang dapat diajukan | Berstatus Draft atau Dibuka (belum ditutup). Batas waktu pengajuan yang lebih rinci (misalnya paling lambat H-1) **[PERLU KONFIRMASI]** (K-19) |
 | Satu pengajuan per anggota per pertemuan | Pengajuan Menunggu dapat dibatalkan atau diedit anggota. Pengajuan Ditolak/Dibatalkan dapat diajukan ulang pada baris yang sama |
-| Tidak boleh jika sudah absen | Jika sudah tercatat Hadir/Terlambat pada pertemuan itu, pengajuan ditolak sistem |
+| Tidak boleh jika sudah absen | Jika sudah tercatat Hadir/Terlambat (berstatus Menunggu atau Terverifikasi) pada pertemuan itu, pengajuan ditolak sistem. Jika absensinya Ditolak admin, anggota boleh mengajukan izin/sakit |
 | Anggota dengan pengajuan Disetujui tidak absen selfie | Catatan absensinya sudah ada. Jika ternyata hadir, pengurus mengoreksi status (tercatat di log) |
 | Pengajuan masih Menunggu saat sesi ditutup | Anggota tetap diberi Alpa otomatis. Jika pengajuan kemudian disetujui, Alpa diubah menjadi Izin/Sakit |
 | Pengurus dapat memproses pengajuan setelah sesi ditutup | Ya, hasilnya memperbarui rekap |
@@ -424,26 +428,63 @@ Izin dan Sakit tetap dihitung sebagai bagian dari total pertemuan (tidak dihitun
 |---|---|
 | Pertemuan sudah ditutup | "Pertemuan ini sudah ditutup. Hubungi pengurus" |
 | Sudah ada pengajuan aktif | Tampilkan pengajuan yang ada dan tawarkan edit/batalkan |
-| Sudah absen di pertemuan itu | "Kamu sudah tercatat hadir pada pertemuan ini" |
+| Sudah absen di pertemuan itu | "Kamu sudah mengirim absensi pada pertemuan ini" |
 | Lampiran terlalu besar/tipe salah | Pesan validasi pada kolom lampiran, pengajuan tidak tersimpan |
 | Internet terputus | Data form dipertahankan di layar, tombol Kirim Ulang |
 
-### F-14. Periode (Tahun Ajaran) **[DITETAPKAN v1.1]**
+### F-14. Verifikasi Absensi oleh Admin **[DITETAPKAN v1.2]**
 
-**Tujuan:** memisahkan pertemuan, rekap, dan persentase kehadiran per tahun ajaran, karena anggota naik kelas dan anggota baru bergabung.
+**Tujuan:** absensi mandiri baru sah setelah admin memeriksa foto dan lokasinya lalu memverifikasi. Ini menjadikan pemeriksaan foto (mitigasi nomor 6 di Bagian 6.5) langkah resmi, bukan sekadar anjuran.
 
-**Data periode:** nama (misalnya "2026/2027"), tanggal mulai, tanggal selesai, status aktif.
+**Status verifikasi** (terpisah dari status kehadiran di Bagian 7):
+
+| Status verifikasi | Arti | Dihitung hadir di rekap? |
+|---|---|:---:|
+| **Menunggu** | Absensi terkirim dan lolos validasi otomatis, belum diperiksa admin | ❌ |
+| **Terverifikasi** | Admin memeriksa dan menyetujui | ✅ (Hadir/Terlambat) |
+| **Ditolak** | Admin menilai bukti tidak sah. Alasan wajib | ❌ |
+
+**Prinsip:**
+- Status kehadiran **Hadir atau Terlambat tetap ditentukan sistem saat anggota mengirim**, dari waktu server saat kirim, bukan saat admin memverifikasi. Verifikasi tidak mengubahnya. Jika admin ingin mengubah status, gunakan Koreksi Status (F-09).
+- **Hanya absensi mandiri** (`sumber_status = anggota`) yang melewati verifikasi. Alpa otomatis, Izin/Sakit dari pengajuan yang disetujui, dan input atau koreksi manual pengurus langsung berstatus Terverifikasi dan tidak masuk antrean.
+- Verifikasi dapat dilakukan kapan saja setelah absensi terkirim, termasuk setelah sesi ditutup.
+
+**Alur:**
+1. Anggota mengirim absensi. Data tersimpan dengan status verifikasi **Menunggu**.
+2. Admin membuka **Antrean Verifikasi** (jumlah antrean tampil di menu dan dashboard).
+3. Admin memeriksa foto (wajah sesuai, latar di sekolah), titik lokasi di peta, jarak, akurasi GPS, waktu, dan penanda "perlu diperiksa" bila K-11 diaktifkan.
+4. Admin menekan **Verifikasi** atau **Tolak** (dengan alasan).
 
 **Aturan bisnis:**
-- Hanya **satu periode aktif** pada satu waktu.
-- Pertemuan baru otomatis masuk periode aktif. Tanggal pertemuan harus berada dalam rentang periode.
-- Rentang tanggal antarperiode tidak boleh tumpang tindih.
-- Dashboard, rekap, dan persentase kehadiran menampilkan periode aktif secara default, dengan pilihan periode lain.
-- Mengganti periode aktif tidak mengubah data lama.
-- Periode yang sudah punya pertemuan tidak dapat dihapus.
-- Data anggota tetap satu lintas periode. Admin memperbarui kelas saat naik kelas. Catatan: kelas pada masa lalu tidak disimpan historis (batasan yang diterima di versi ini).
 
-**Kondisi gagal:** membuat pertemuan saat tidak ada periode aktif menampilkan "Buat atau aktifkan periode terlebih dulu".
+| Aturan | Keterangan |
+|---|---|
+| Verifikasi satu absensi | Status menjadi Terverifikasi. Pelaku dan waktu tersimpan |
+| Verifikasi massal | Admin dapat mencentang beberapa absensi lalu menekan "Verifikasi Terpilih". Konfirmasi menyebut jumlahnya. "Pilih semua" melewati baris bertanda perlu diperiksa (bila K-11 aktif) agar tidak terverifikasi tanpa dilihat. Satu entri log memuat jumlah dan daftar id |
+| Tolak | Alasan **wajib**: pilihan cepat ("Foto tidak jelas", "Wajah tidak sesuai", "Foto bukan di lokasi sekolah", "Lainnya") dan catatan bebas opsional. Alasan disimpan di `alasan_penolakan` |
+| Ditolak saat sesi masih Dibuka | Anggota melihat alasan dan tombol **Absen Ulang**. Kirim ulang memperbarui baris yang sama: foto dan lokasi lama diganti (file lama dihapus), waktu dan status Hadir/Terlambat dihitung ulang dari waktu kirim ulang, status verifikasi kembali Menunggu, `jumlah_kirim` bertambah. Alasan penolakan sebelumnya tetap tercatat di log aktivitas |
+| Batas kirim | Maksimal **3 kali pengiriman** per pertemuan **[REKOMENDASI]** (K-20). Setelah itu anggota menghubungi pengurus |
+| Ditolak lalu sesi ditutup | Bila anggota tidak mengirim ulang sampai sesi ditutup (manual atau otomatis), status kehadiran menjadi **Alpa** (`sumber_status = sistem`) dan status verifikasi tetap Ditolak dengan alasannya. Pengurus dapat mengoreksi lewat Koreksi Status |
+| Ditolak setelah sesi sudah ditutup | Status kehadiran langsung menjadi Alpa. Anggota tidak dapat kirim ulang |
+| Masih Menunggu saat sesi ditutup | Tidak berubah. Tidak menjadi Alpa. Tetap menunggu diperiksa |
+| Urutan antrean | Yang bertanda perlu diperiksa lebih dulu (bila K-11 aktif), lalu yang paling lama menunggu |
+| Dua admin memproses bersamaan | Aksi kedua ditolak dengan pesan "Sudah diproses oleh [nama]" dan daftar dimuat ulang |
+| Retensi | Foto absensi berstatus Menunggu tidak dihapus oleh tugas retensi sampai diverifikasi atau ditolak **[REKOMENDASI]** |
+| Pencatatan | Setiap verifikasi, penolakan, dan verifikasi massal masuk log aktivitas (F-15) |
+| Tampilan anggota | Status verifikasi tampil di Beranda, layar hasil, Riwayat, dan Detail Riwayat. Tidak ada notifikasi push, sehingga anggota perlu membuka aplikasi |
+
+**Validasi:** alasan penolakan wajib 5–255 karakter (gabungan pilihan cepat dan catatan).
+
+**Kondisi gagal:**
+
+| Kondisi | Respons Sistem |
+|---|---|
+| Tolak tanpa alasan | Ditolak dengan pesan validasi, status tidak berubah |
+| Absensi sudah diproses admin lain | Pesan "Sudah diproses oleh [nama]", daftar dimuat ulang |
+| Anggota mengirim ulang saat masih Menunggu atau Terverifikasi | "Absensi kamu sudah terkirim (status: [Menunggu/Terverifikasi])" |
+| Anggota mengirim ulang setelah 3 kali | "Batas pengiriman tercapai. Hubungi pengurus" |
+| Anggota mengirim ulang setelah sesi ditutup | "Sesi absensi sudah ditutup" |
+| Internet terputus saat memproses | Pesan jelas, tidak ada perubahan setengah jadi |
 
 ### F-15. Log Aktivitas dan Log Penolakan **[DITETAPKAN v1.1]**
 
@@ -456,7 +497,8 @@ Izin dan Sakit tetap dihitung sebagai bagian dari total pertemuan (tidak dihitun
 | Persetujuan/penolakan pengajuan izin/sakit | Pengajuan, keputusan, catatan |
 | Tambah/ubah/nonaktifkan anggota, reset kata sandi | Anggota yang terdampak (tanpa menyimpan kata sandi) |
 | Ubah pengaturan lokasi, radius, akurasi, retensi | Nilai lama dan baru |
-| Ganti periode aktif | Periode lama dan baru |
+| Verifikasi atau penolakan absensi, termasuk verifikasi massal | Absensi (atau jumlah dan daftar id), keputusan, alasan penolakan |
+| Absensi Ditolak yang dikirim ulang | Alasan penolakan sebelumnya dan nomor pengiriman |
 | Penghapusan data karena retensi | Jumlah item yang dihapus (bukan isinya) |
 
 Aturan: log hanya dapat dilihat Admin, tidak dapat diubah atau dihapus lewat aplikasi (hanya ditambah), dan dapat difilter berdasarkan tanggal, pelaku, dan jenis aksi.
@@ -490,6 +532,7 @@ Aturan: log hanya dapat dilihat Admin, tidak dapat diubah atau dihapus lewat apl
 | Status, waktu, dan jarak | Tetap disimpan untuk rekap | – |
 
 - Dijalankan harian oleh Laravel Scheduler. Lama retensi disimpan di pengaturan (`retensi_bulan`) dan dapat diubah admin.
+- Absensi yang masih berstatus **Menunggu verifikasi** dikecualikan dari penghapusan sampai diverifikasi atau ditolak (F-14).
 - Setelah dihapus, detail absensi menampilkan "Foto dan lokasi sudah dihapus sesuai kebijakan retensi".
 - Cadangan (*backup*) juga berisi data pribadi sehingga harus disimpan aman dan tunduk pada aturan yang sama.
 
@@ -499,7 +542,7 @@ Aturan: log hanya dapat dilihat Admin, tidak dapat diubah atau dihapus lewat apl
 
 ### 6.1 Prasyarat
 
-Anggota sudah login, ada sesi berstatus Dibuka, anggota berstatus aktif, belum punya catatan absensi di sesi itu, dan perangkat memiliki kamera, GPS, serta koneksi internet.
+Anggota sudah login, ada sesi berstatus Dibuka, anggota berstatus aktif, belum punya catatan absensi di sesi itu (atau absensinya Ditolak dan masih boleh dikirim ulang, F-14), dan perangkat memiliki kamera, GPS, serta koneksi internet.
 
 ### 6.2 Langkah Absensi **[DITETAPKAN]**
 
@@ -514,8 +557,11 @@ Anggota sudah login, ada sesi berstatus Dibuka, anggota berstatus aktif, belum p
 | 7 | Sistem menghitung jarak anggota ke titik sekolah | Sistem |
 | 8 | Sistem memeriksa apakah dalam radius | Sistem |
 | 9 | Anggota menekan tombol kirim | Anggota |
-| 10 | Sistem menyimpan foto, lokasi, waktu, dan identitas anggota | Sistem |
-| 11 | Sistem menampilkan hasil absensi | Sistem |
+| 10 | Sistem menyimpan foto, lokasi, waktu, dan identitas anggota dengan status verifikasi **Menunggu** | Sistem |
+| 11 | Sistem menampilkan bahwa absensi terkirim dan menunggu verifikasi admin | Sistem |
+| 12 | Admin memeriksa foto dan lokasi, lalu memverifikasi atau menolak (F-14) | Admin |
+
+**Catatan:** langkah 12 ditambahkan pada v1.2 atas permintaan pemilik produk.
 
 **Catatan implementasi:** langkah 7–8 dijalankan dua kali. Sekali di browser untuk umpan balik cepat (tombol kirim hanya aktif bila lolos), dan sekali lagi **di server saat langkah 10** sebagai pemeriksaan yang sah. Server juga memeriksa ulang sesi masih dibuka dan anggota belum absen, karena kondisi bisa berubah antara langkah 3 dan 9.
 
@@ -524,7 +570,8 @@ Anggota sudah login, ada sesi berstatus Dibuka, anggota berstatus aktif, belum p
 - Foto selfie dan GPS adalah komponen **wajib**. Absensi tanpa salah satunya ditolak.
 - **Waktu absensi ditentukan oleh server**, bukan jam HP anggota.
 - **Identitas anggota diambil dari sesi login**, bukan dari data yang dikirim form.
-- **Pencegahan absensi ganda:** dijaga di dua lapis, yaitu pemeriksaan di aplikasi dan *unique constraint* `(pertemuan_id, anggota_id)` di database. Lapis database penting untuk kasus tombol kirim ditekan dua kali atau dua perangkat bersamaan.
+- **Pencegahan absensi ganda:** dijaga di dua lapis, yaitu pemeriksaan di aplikasi dan *unique constraint* `(pertemuan_id, anggota_id)` di database. Lapis database penting untuk kasus tombol kirim ditekan dua kali atau dua perangkat bersamaan. Satu-satunya pengecualian adalah kirim ulang setelah ditolak admin (memperbarui baris yang sama, F-14).
+- **Setelah tersimpan, absensi berstatus Menunggu verifikasi** dan belum dihitung hadir pada rekap resmi sampai admin memverifikasi (F-14).
 - Tombol kirim dinonaktifkan setelah ditekan (mencegah klik ganda) dan menampilkan indikator proses.
 - Waktu yang dipakai seluruh aplikasi adalah **WIB (Asia/Jakarta)**, ditentukan oleh server. Sesi dianggap tertutup jika waktu server melewati tanggal dan jam selesai, walaupun Scheduler belum menutupnya.
 - Percobaan yang ditolak karena lokasi (di luar radius atau akurasi buruk) dicatat ke **log penolakan** (F-15), tanpa foto.
@@ -543,7 +590,8 @@ Anggota sudah login, ada sesi berstatus Dibuka, anggota berstatus aktif, belum p
 | **Akurasi GPS buruk** | Akurasi > batas toleransi | Pesan "Sinyal GPS kurang akurat, pindah ke tempat terbuka" + coba lagi | Coba ulang di tempat terbuka |
 | **Sesi absensi sudah ditutup** | Server memeriksa status sesi saat kirim | Ditolak: "Sesi absensi sudah ditutup" | Hubungi pengurus bila ada alasan sah |
 | **Tidak ada sesi aktif** | Halaman absensi memeriksa sesi | Tampil "Belum ada sesi absensi aktif", tombol absen tidak ada | Tunggu pengurus membuka sesi |
-| **Absensi berulang** | Pemeriksaan aplikasi + unique constraint | Ditolak ramah: "Anda sudah absen pada sesi ini pukul [jam]" + tampilkan hasil absensi sebelumnya | Tidak perlu tindakan |
+| **Absensi berulang** | Pemeriksaan aplikasi + unique constraint | Jika Menunggu atau Terverifikasi: ditolak ramah "Anda sudah absen pada sesi ini pukul [jam]" + tampilkan hasil dan status verifikasinya. Jika Ditolak admin dan sesi masih Dibuka: kirim ulang diizinkan (maks. 3 kali) | Tidak perlu tindakan, atau kirim ulang bila ditolak |
+| **Absensi ditolak admin** | Status verifikasi Ditolak | Beranda dan Riwayat menampilkan alasan dan tombol Absen Ulang selama sesi Dibuka. Setelah sesi ditutup, status menjadi Alpa | Perbaiki penyebab (misalnya foto lebih jelas) lalu kirim ulang, atau hubungi pengurus |
 | **Sesi login berakhir** | Server mengembalikan status tidak terautentikasi | Arahkan ke login dengan pesan jelas. Data foto di layar mungkin hilang | Login lalu ulangi |
 | **Kuota penyimpanan server penuh** | Gagal menulis file | Pesan umum "Terjadi gangguan, coba lagi nanti" + kejadian dicatat di log untuk admin | Hubungi pengurus |
 
@@ -571,7 +619,7 @@ Anggota sudah login, ada sesi berstatus Dibuka, anggota berstatus aktif, belum p
 | 3 | Hitungan jarak di server | **[REKOMENDASI]** | Mencegah manipulasi validasi di browser |
 | 4 | Menyimpan akurasi GPS dan jarak pada setiap absensi | **[REKOMENDASI]** | Bahan pemeriksaan pengurus |
 | 5 | Batas akurasi GPS maksimum | **[REKOMENDASI]** | Menolak pembacaan lokasi yang sangat kasar |
-| 6 | Pengurus memeriksa foto di dashboard (wajah sesuai, latar di sekolah) | **[REKOMENDASI]** | Mitigasi paling efektif pada skala klub kecil |
+| 6 | Admin memeriksa dan memverifikasi setiap absensi mandiri (wajah sesuai, latar di sekolah) sebelum dihitung hadir (F-14) | **[DITETAPKAN v1.2]** | Mitigasi paling efektif pada skala klub kecil. Titip absen dan foto lama dapat ditolak sebelum masuk rekap |
 | 7 | Penanda "perlu diperiksa" otomatis untuk pola mencurigakan, misalnya akurasi tepat 0, koordinat identik persis antar-anggota pada waktu berdekatan, atau lokasi tepat di titik pusat sekolah | **[PERLU KONFIRMASI]** (K-11) | Membantu pengurus memilih data untuk dicek |
 | 8 | Pengurus membuka sesi hanya saat pertemuan berlangsung | **[DITETAPKAN]** (admin membuka/menutup sesi) | Mempersempit jendela penyalahgunaan |
 | 9 | Aturan klub yang tegas bahwa pemalsuan lokasi adalah pelanggaran disiplin | Di luar sistem | Pencegahan non-teknis |
@@ -585,11 +633,11 @@ Anggota sudah login, ada sesi berstatus Dibuka, anggota berstatus aktif, belum p
 
 | Status | Arti | Siapa yang Menentukan |
 |---|---|---|
-| **Hadir** | Absen dalam batas waktu tepat | **Sistem**, otomatis saat absensi selfie + GPS berhasil dan waktu masih dalam toleransi |
-| **Terlambat** | Absen setelah batas waktu tepat, tetapi sesi masih dibuka | **Sistem**, otomatis dari perbandingan waktu server dengan jam mulai + toleransi |
+| **Hadir** | Absen dalam batas waktu tepat | **Sistem**, otomatis saat absensi selfie + GPS berhasil dan waktu masih dalam toleransi. Baru dihitung setelah **diverifikasi admin** (lihat 7.6) |
+| **Terlambat** | Absen setelah batas waktu tepat, tetapi sesi masih dibuka | **Sistem**, otomatis dari perbandingan waktu server dengan jam mulai + toleransi. Baru dihitung setelah **diverifikasi admin** (lihat 7.6) |
 | **Izin** | Tidak hadir dengan pemberitahuan alasan | **Pengurus**: input manual, atau menyetujui pengajuan anggota (F-13). **[DITETAPKAN v1.1]** (K-13) |
 | **Sakit** | Tidak hadir karena sakit | **Pengurus**: input manual, atau menyetujui pengajuan anggota (F-13). **[DITETAPKAN v1.1]** (K-13) |
-| **Alpa** | Tidak hadir tanpa keterangan | **Sistem**, otomatis diberikan saat sesi ditutup kepada anggota aktif yang belum punya catatan. Dapat dikoreksi pengurus |
+| **Alpa** | Tidak hadir tanpa keterangan | **Sistem**, otomatis diberikan saat sesi ditutup kepada anggota aktif yang belum punya catatan, dan kepada anggota yang absensinya Ditolak lalu tidak dikirim ulang. Dapat dikoreksi pengurus |
 
 ### 7.2 Prinsip
 
@@ -597,6 +645,7 @@ Anggota sudah login, ada sesi berstatus Dibuka, anggota berstatus aktif, belum p
 - Izin dan Sakit tidak bisa dihasilkan lewat tombol absensi karena berarti anggota tidak hadir di lokasi.
 - Anggota hanya **mengajukan** Izin/Sakit (F-13). Status resmi baru berlaku setelah pengurus menyetujui. Pengajuan yang menunggu atau ditolak tidak mengubah status.
 - Alpa adalah status default bagi yang tidak melakukan apa pun.
+- Status Hadir/Terlambat dari absensi mandiri belum dihitung sampai **Terverifikasi** oleh admin (7.6).
 - Setiap koreksi status oleh pengurus mencatat siapa yang mengubah, kapan, dan alasannya.
 
 ### 7.3 Pencatatan Manual oleh Pengurus **[REKOMENDASI]**
@@ -611,10 +660,20 @@ Usulan: `Hadir` jika waktu absen ≤ jam mulai + toleransi (default 15 menit). `
 
 | Sumber | Dipakai untuk |
 |---|---|
-| `anggota` | Absensi mandiri (Hadir/Terlambat, status dihitung sistem) |
-| `sistem` | Alpa otomatis saat sesi ditutup |
+| `anggota` | Absensi mandiri (Hadir/Terlambat, status dihitung sistem, perlu verifikasi admin) |
+| `sistem` | Alpa otomatis saat sesi ditutup, termasuk dari absensi Ditolak yang tidak dikirim ulang |
 | `pengurus` | Izin, Sakit, atau koreksi manual |
 | `pengajuan` | Izin atau Sakit dari pengajuan anggota yang disetujui pengurus |
+
+### 7.6 Status Verifikasi **[DITETAPKAN v1.2]**
+
+Status verifikasi menjawab pertanyaan "apakah absensi ini sudah diperiksa admin", terpisah dari status kehadiran. Detail aturan ada di F-14.
+
+| Status verifikasi | Berlaku untuk | Dampak pada rekap |
+|---|---|---|
+| Menunggu | Absensi mandiri yang baru terkirim | Belum dihitung hadir. Tampil terpisah sebagai "Menunggu verifikasi" |
+| Terverifikasi | Absensi mandiri yang disetujui admin, serta semua status non-mandiri (Alpa otomatis, Izin/Sakit, input pengurus) | Dihitung sesuai statusnya |
+| Ditolak | Absensi mandiri yang ditolak admin | Tidak dihitung hadir. Menjadi Alpa bila sesi ditutup tanpa kirim ulang |
 
 ---
 
@@ -629,9 +688,8 @@ DBMS: MySQL. Engine InnoDB (mendukung foreign key dan transaksi). Karakter set `
 | `users` | Akun login dan peran |
 | `anggota` | Profil anggota IT Club (terhubung ke `users`) |
 | `pertemuan` | Sesi pertemuan/absensi |
-| `absensi` | Catatan kehadiran per anggota per pertemuan |
+| `absensi` | Catatan kehadiran per anggota per pertemuan, termasuk status verifikasi admin |
 | `pengaturan` | Konfigurasi aplikasi (lokasi sekolah, radius, retensi, dll.) |
-| `periode` | Tahun ajaran, untuk memisahkan rekap (v1.1) |
 | `pengajuan_izin` | Pengajuan Izin/Sakit dari anggota (v1.1) |
 | `log_penolakan` | Percobaan absensi ditolak karena lokasi (v1.1) |
 | `log_aktivitas` | Jejak aksi penting admin dan sistem (v1.1) |
@@ -679,7 +737,6 @@ Tabel pendukung bawaan Laravel (sesi, antrean, cache) tidak dibahas di sini.
 | Kolom | Tipe Data | Key | Null | Default | Keterangan |
 |---|---|---|:---:|---|---|
 | `id` | BIGINT UNSIGNED, AUTO_INCREMENT | PK | Tidak | – | |
-| `periode_id` | BIGINT UNSIGNED | FK → `periode.id` | Tidak | – | Periode (tahun ajaran) pertemuan ini |
 | `judul` | VARCHAR(150) | – | Tidak | – | |
 | `tanggal` | DATE | INDEX | Tidak | – | |
 | `jam_mulai` | TIME | – | Tidak | – | |
@@ -693,7 +750,7 @@ Tabel pendukung bawaan Laravel (sesi, antrean, cache) tidak dibahas di sini.
 | `dibuat_oleh` | BIGINT UNSIGNED | FK → `users.id` | Tidak | – | Admin pembuat |
 | `created_at`, `updated_at` | TIMESTAMP | – | Ya | NULL | |
 
-**Index:** `(tanggal, status)` untuk pencarian sesi aktif hari ini dan penutupan otomatis. `(periode_id, tanggal)` untuk rekap per periode.
+**Index:** `(tanggal, status)` untuk pencarian sesi aktif hari ini dan penutupan otomatis.
 
 ### 8.5 Tabel `absensi`
 
@@ -704,7 +761,12 @@ Tabel pendukung bawaan Laravel (sesi, antrean, cache) tidak dibahas di sini.
 | `anggota_id` | BIGINT UNSIGNED | FK → `anggota.id` | Tidak | – | |
 | `status` | ENUM('hadir','terlambat','izin','sakit','alpa') | INDEX | Tidak | – | Lihat Bagian 7 |
 | `sumber_status` | ENUM('anggota','sistem','pengurus','pengajuan') | – | Tidak | – | Siapa yang menghasilkan status |
-| `waktu_absen` | DATETIME | – | Ya | NULL | Waktu server saat absen. NULL untuk Alpa/Izin/Sakit tanpa absen |
+| `status_verifikasi` | ENUM('menunggu','terverifikasi','ditolak') | INDEX | Tidak | 'menunggu' | Status pemeriksaan admin (F-14). Absensi bukan mandiri (sistem, pengurus, pengajuan) langsung diisi 'terverifikasi' |
+| `diverifikasi_oleh` | BIGINT UNSIGNED | FK → `users.id` | Ya | NULL | Admin yang memverifikasi atau menolak. NULL bila masih Menunggu atau bila diisi sistem |
+| `diverifikasi_pada` | DATETIME | – | Ya | NULL | Waktu verifikasi atau penolakan |
+| `alasan_penolakan` | VARCHAR(255) | – | Ya | NULL | Wajib bila 'ditolak'. Tetap tersimpan saat status kehadiran menjadi Alpa |
+| `jumlah_kirim` | TINYINT UNSIGNED | – | Tidak | 1 | Berapa kali anggota mengirim pada pertemuan ini (maks. 3, K-20) |
+| `waktu_absen` | DATETIME | – | Ya | NULL | Waktu server saat absen (atau kirim ulang terakhir). NULL untuk Alpa/Izin/Sakit tanpa absen |
 | `foto_path` | VARCHAR(255) | – | Ya | NULL | Lokasi file di penyimpanan privat. NULL bila bukan absensi mandiri |
 | `latitude` | DECIMAL(10,7) | – | Ya | NULL | |
 | `longitude` | DECIMAL(10,7) | – | Ya | NULL | |
@@ -724,13 +786,18 @@ Tabel pendukung bawaan Laravel (sesi, antrean, cache) tidak dibahas di sini.
 | **UNIQUE** | `(pertemuan_id, anggota_id)` | Mencegah absensi ganda. Kunci utama aturan bisnis |
 | INDEX | `anggota_id` | Mempercepat riwayat pribadi |
 | INDEX | `(pertemuan_id, status)` | Mempercepat rekap per pertemuan |
+| INDEX | `(status_verifikasi, created_at)` | Mempercepat Antrean Verifikasi |
 
 **Aturan integritas data:**
 - Jika `sumber_status = anggota`, maka `foto_path`, `latitude`, `longitude`, `waktu_absen` wajib terisi (divalidasi di aplikasi).
 - Jika `sumber_status` adalah `sistem`, `pengurus`, atau `pengajuan`, kolom foto/GPS boleh NULL.
-- Setelah masa retensi (F-16), `foto_path`, `latitude`, `longitude`, dan `akurasi_gps` menjadi NULL pada semua jenis sumber. `status`, `waktu_absen`, dan `jarak_meter` tetap.
+- Setelah masa retensi (F-16), `foto_path`, `latitude`, `longitude`, dan `akurasi_gps` menjadi NULL pada semua jenis sumber. `status`, `waktu_absen`, dan `jarak_meter` tetap. Baris berstatus Menunggu dikecualikan.
+- Jika `status_verifikasi = 'ditolak'`, `alasan_penolakan` wajib terisi (divalidasi di aplikasi).
+- Baris Ditolak hanya dapat kembali Menunggu lewat kirim ulang anggota saat sesi Dibuka (`jumlah_kirim` + 1). Alasan penolakan sebelumnya dicatat di `log_aktivitas` sebelum data diganti.
+- Rekap resmi menghitung Hadir dan Terlambat hanya pada baris `status_verifikasi = 'terverifikasi'`. Alpa dihitung apa pun status verifikasinya.
+- Perubahan status verifikasi memakai kondisi `status_verifikasi = 'menunggu'` pada pembaruan, agar dua admin tidak menimpa keputusan satu sama lain.
 - Foreign key `pertemuan_id` dan `anggota_id` memakai `ON DELETE RESTRICT` agar riwayat tidak hilang tak sengaja.
-- Percobaan yang ditolak karena lokasi (K-08) tidak disimpan di tabel ini agar data kehadiran tetap bersih. Disimpan di tabel `log_penolakan` (bagian 8.9).
+- Percobaan yang ditolak karena lokasi (K-08) tidak disimpan di tabel ini agar data kehadiran tetap bersih. Disimpan di tabel `log_penolakan` (bagian 8.8).
 
 ### 8.6 Tabel `pengaturan`
 
@@ -756,20 +823,7 @@ Pendekatan: **pasangan kunci–nilai**, sehingga penambahan pengaturan tidak per
 | `retensi_bulan` | 12 | Lama simpan foto dan koordinat sebelum dihapus (F-16, K-15) |
 | `privasi_versi_terbaru` | 1 | Versi Pemberitahuan Privasi yang berlaku |
 
-### 8.7 Tabel `periode` (v1.1)
-
-| Kolom | Tipe Data | Key | Null | Default | Keterangan |
-|---|---|---|:---:|---|---|
-| `id` | BIGINT UNSIGNED, AUTO_INCREMENT | PK | Tidak | – | |
-| `nama` | VARCHAR(50) | UNIQUE | Tidak | – | Contoh: "2026/2027" |
-| `tanggal_mulai` | DATE | – | Tidak | – | |
-| `tanggal_selesai` | DATE | – | Tidak | – | Harus setelah `tanggal_mulai` |
-| `is_aktif` | BOOLEAN | INDEX | Tidak | 0 | Hanya satu baris boleh bernilai 1 |
-| `created_at`, `updated_at` | TIMESTAMP | – | Ya | NULL | |
-
-**Catatan:** MySQL tidak mendukung *unique* parsial. Aturan "hanya satu periode aktif" dijaga di aplikasi dalam satu transaksi saat mengaktifkan periode. Keterkaitan: `pertemuan.periode_id` → `periode.id` dengan `ON DELETE RESTRICT`.
-
-### 8.8 Tabel `pengajuan_izin` (v1.1)
+### 8.7 Tabel `pengajuan_izin` (v1.1)
 
 | Kolom | Tipe Data | Key | Null | Default | Keterangan |
 |---|---|---|:---:|---|---|
@@ -787,7 +841,7 @@ Pendekatan: **pasangan kunci–nilai**, sehingga penambahan pengaturan tidak per
 
 **Constraint:** UNIQUE `(pertemuan_id, anggota_id)`. Pengajuan Ditolak atau Dibatalkan yang diajukan ulang memperbarui baris yang sama (status kembali Menunggu). Riwayat perubahannya ada di `log_aktivitas`. Index tambahan: `(status, created_at)` untuk daftar pengajuan menunggu.
 
-### 8.9 Tabel `log_penolakan` (v1.1)
+### 8.8 Tabel `log_penolakan` (v1.1)
 
 | Kolom | Tipe Data | Key | Null | Default | Keterangan |
 |---|---|---|:---:|---|---|
@@ -804,7 +858,7 @@ Pendekatan: **pasangan kunci–nilai**, sehingga penambahan pengaturan tidak per
 
 **Index:** `(pertemuan_id, anggota_id)` dan `created_at`. Tidak menyimpan foto.
 
-### 8.10 Tabel `log_aktivitas` (v1.1)
+### 8.9 Tabel `log_aktivitas` (v1.1)
 
 | Kolom | Tipe Data | Key | Null | Default | Keterangan |
 |---|---|---|:---:|---|---|
@@ -821,16 +875,16 @@ Pendekatan: **pasangan kunci–nilai**, sehingga penambahan pengaturan tidak per
 
 **Catatan:** `user_id` memakai `ON DELETE RESTRICT`. Akun yang punya log dinonaktifkan, bukan dihapus.
 
-### 8.11 ERD (Mermaid)
+### 8.10 ERD (Mermaid)
 
 ```mermaid
 erDiagram
     USERS ||--o| ANGGOTA : "memiliki profil"
     USERS ||--o{ PERTEMUAN : "membuat (admin)"
     USERS ||--o{ ABSENSI : "mengoreksi (admin)"
+    USERS ||--o{ ABSENSI : "memverifikasi (admin)"
     USERS ||--o{ PENGAJUAN_IZIN : "memutuskan (admin)"
     USERS ||--o{ LOG_AKTIVITAS : "pelaku"
-    PERIODE ||--o{ PERTEMUAN : "mengelompokkan"
     ANGGOTA ||--o{ ABSENSI : "melakukan"
     PERTEMUAN ||--o{ ABSENSI : "memiliki"
     ANGGOTA ||--o{ PENGAJUAN_IZIN : "mengajukan"
@@ -864,7 +918,6 @@ erDiagram
 
     PERTEMUAN {
         bigint id PK
-        bigint periode_id FK
         varchar judul
         date tanggal
         time jam_mulai
@@ -882,6 +935,11 @@ erDiagram
         bigint anggota_id FK
         enum status
         enum sumber_status
+        enum status_verifikasi
+        bigint diverifikasi_oleh FK
+        datetime diverifikasi_pada
+        varchar alasan_penolakan
+        tinyint jumlah_kirim
         datetime waktu_absen
         varchar foto_path
         decimal latitude
@@ -898,14 +956,6 @@ erDiagram
         bigint id PK
         varchar kunci UK
         varchar nilai
-    }
-
-    PERIODE {
-        bigint id PK
-        varchar nama UK
-        date tanggal_mulai
-        date tanggal_selesai
-        boolean is_aktif
     }
 
     PENGAJUAN_IZIN {
@@ -981,10 +1031,13 @@ flowchart TD
     B --> F[Rekap Kehadiran]
     B --> G[Pengaturan Lokasi]
     B --> I[Pengajuan Izin/Sakit]
-    B --> J[Periode / Tahun Ajaran]
+    B --> V[Antrean Verifikasi]
     B --> K[Log Aktivitas]
     I --> I1[Setujui atau tolak pengajuan, status absensi diperbarui]
-    J --> J1[Buat dan aktifkan periode]
+    V --> V1[Periksa foto, lokasi di peta, jarak, akurasi]
+    V1 --> V2{Keputusan}
+    V2 -- Verifikasi atau verifikasi massal --> V3[Status Terverifikasi, mulai dihitung di rekap]
+    V2 -- Tolak --> V4[Alasan wajib, anggota dapat absen ulang bila sesi masih Dibuka]
     K --> K1[Telusuri perubahan dan percobaan ditolak]
 
     C --> C1[Tambah / Ubah / Nonaktifkan anggota]
@@ -993,7 +1046,7 @@ flowchart TD
     D2 --> D3[Pantau absensi masuk]
     D3 --> D4[Tutup sesi manual atau otomatis saat jam selesai - status Ditutup]
     D4 --> D5[Sistem memberi Alpa pada yang belum absen]
-    E --> E1[Periksa foto, lokasi di peta, jarak]
+    E --> E1[Lihat detail dan status verifikasi]
     E1 --> E2[Koreksi status bila perlu, wajib alasan]
     F --> F1[Lihat rekap per pertemuan / per anggota]
     G --> G1[Atur titik sekolah di peta dan radius]
@@ -1005,7 +1058,7 @@ flowchart TD
 ```mermaid
 flowchart TD
     A([Login Anggota]) --> B[Dashboard Anggota]
-    B --> C{Ada sesi aktif<br/>dan belum absen?}
+    B --> C{Ada sesi aktif dan<br/>belum absen atau ditolak?}
     C -- Ya --> D[Tekan Absen Sekarang] --> E[Proses Absensi - lihat 9.4]
     C -- Tidak --> F[Lihat status sesi / hasil absen]
     B --> G[Riwayat Kehadiran]
@@ -1014,6 +1067,10 @@ flowchart TD
     J1 --> J2[Pengurus memutuskan, anggota melihat hasilnya]
     B --> H[Persentase Kehadiran Pribadi]
     G --> G1[Detail absensi: foto dan lokasi sendiri]
+    G --> G2[Lihat status verifikasi: Menunggu, Terverifikasi, atau Ditolak dan alasan]
+    G2 --> G3{Ditolak dan sesi<br/>masih Dibuka?}
+    G3 -- Ya --> D
+    G3 -- Tidak --> F
     B --> I([Logout])
 ```
 
@@ -1023,8 +1080,8 @@ flowchart TD
 flowchart TD
     A([Anggota buka halaman absensi]) --> B{Sesi aktif?}
     B -- Tidak --> B1[Tampil: belum ada sesi aktif] --> Z([Selesai])
-    B -- Ya --> C{Sudah absen<br/>di sesi ini?}
-    C -- Ya --> C1[Tampilkan hasil absensi sebelumnya] --> Z
+    B -- Ya --> C{Sudah absen di sesi ini<br/>dan tidak ditolak?}
+    C -- Ya --> C1[Tampilkan hasil dan status verifikasi sebelumnya] --> Z
     C -- Tidak --> D[Minta izin kamera]
     D --> E{Kamera tersedia<br/>dan diizinkan?}
     E -- Tidak --> E1[Pesan penyebab + petunjuk] --> D
@@ -1045,7 +1102,7 @@ flowchart TD
     O -- Ya --> P[Server memproses - lihat 9.5 dan 9.6]
     P --> Q{Diterima?}
     Q -- Tidak --> Q1[Tampilkan alasan penolakan] --> Z
-    Q -- Ya --> R[Tampilkan hasil: status, waktu, jarak] --> Z
+    Q -- Ya --> R[Tampilkan: absensi terkirim,<br/>menunggu verifikasi admin] --> Z
 ```
 
 ### 9.5 Alur Validasi GPS (di Server)
@@ -1082,12 +1139,12 @@ flowchart TD
     F -- Ya --> G[Mulai transaksi database]
     G --> H[Simpan file foto ke penyimpanan privat]
     H --> I[Tentukan waktu absen dari jam server<br/>dan status Hadir atau Terlambat]
-    I --> J[Insert data absensi]
+    I --> J[Simpan dengan status verifikasi Menunggu.<br/>Baru: insert. Kirim ulang setelah ditolak<br/>dan jumlah kirim di bawah 3: perbarui baris yang sama]
     J --> K{Berhasil?<br/>unique pertemuan+anggota}
     K -- Duplikat --> X5[Batalkan transaksi, hapus file foto,<br/>tampilkan: sudah absen]
     K -- Gagal lain --> X6[Batalkan transaksi, hapus file foto,<br/>pesan gangguan sementara]
     K -- Ya --> L[Commit transaksi]
-    L --> M([Kirim hasil ke anggota])
+    L --> M([Kirim hasil ke anggota:<br/>terkirim, menunggu verifikasi])
 ```
 
 ### 9.7 Alur Pengajuan Izin/Sakit
@@ -1118,9 +1175,37 @@ flowchart TD
     B --> C{Ada sesi?}
     C -- Tidak --> Z([Selesai])
     C -- Ya --> D[Ubah status menjadi Ditutup, cara tutup otomatis]
-    D --> E[Beri Alpa pada anggota aktif<br/>yang belum punya catatan]
+    D --> E[Beri Alpa pada anggota aktif yang belum punya catatan<br/>dan pada absensi Ditolak yang tidak dikirim ulang.<br/>Absensi Menunggu tetap Menunggu]
     E --> F[Catat ke log aktivitas, pelaku sistem]
     F --> Z
+```
+
+### 9.9 Alur Verifikasi Absensi
+
+```mermaid
+flowchart TD
+    A([Absensi mandiri tersimpan]) --> B[Status verifikasi Menunggu,<br/>masuk Antrean Verifikasi]
+    B --> C[Admin membuka Antrean Verifikasi]
+    C --> D[Periksa foto, peta, jarak, akurasi, waktu]
+    D --> E{Keputusan}
+    E -- Verifikasi --> F{Masih Menunggu?<br/>belum diproses admin lain}
+    F -- Tidak --> F1[Pesan: sudah diproses oleh admin lain] --> C
+    F -- Ya --> G[Status Terverifikasi,<br/>simpan pelaku dan waktu]
+    E -- Tolak --> H[Isi alasan wajib]
+    H --> I{Masih Menunggu?}
+    I -- Tidak --> F1
+    I -- Ya --> J[Status Ditolak, simpan alasan]
+    J --> K{Sesi masih Dibuka?}
+    K -- Ya --> L[Anggota melihat alasan dan tombol Absen Ulang]
+    L --> M{Anggota kirim ulang<br/>dan jumlah kirim di bawah 3?}
+    M -- Ya --> N[Perbarui baris yang sama,<br/>status kembali Menunggu] --> B
+    M -- Tidak sampai sesi ditutup --> O[Status kehadiran menjadi Alpa,<br/>status verifikasi tetap Ditolak]
+    K -- Tidak --> O
+    G --> P[Catat ke log aktivitas]
+    O --> P
+    E -- Verifikasi massal --> Q[Pilih beberapa, konfirmasi jumlah]
+    Q --> R[Verifikasi semua yang masih Menunggu,<br/>satu entri log berisi jumlah dan daftar id] --> P
+    P --> Z([Selesai])
 ```
 
 ---
@@ -1150,18 +1235,26 @@ flowchart TD
 
 Selalu sertakan teks dan ikon agar tetap terbaca oleh pengguna dengan buta warna.
 
+**Status verifikasi (v1.2)** **[REKOMENDASI]**:
+
+| Status verifikasi | Warna | Ikon/Teks |
+|---|---|---|
+| Menunggu verifikasi | Amber | ⌛ Menunggu verifikasi |
+| Terverifikasi | Hijau | 🛡✔ Terverifikasi |
+| Ditolak | Merah | ⓧ Ditolak |
+
 ### 10.3 Struktur Halaman dan Navigasi
 
 **Anggota** (navigasi: *bottom navigation bar* di mobile, 4 item):
 
 | Menu | Halaman | Isi Utama |
 |---|---|---|
-| Beranda | Dashboard Anggota | Status sesi, tombol Absen, persentase, riwayat ringkas |
+| Beranda | Dashboard Anggota | Status sesi, tombol Absen (atau Absen Ulang), status verifikasi, persentase, riwayat ringkas |
 | Absen | Halaman Absensi | Kamera, GPS, peta mini, tombol kirim |
 | Riwayat | Riwayat Kehadiran | Daftar per bulan, detail absensi |
 | Profil | Profil | Data diri, ganti kata sandi, logout |
 
-Halaman lain: Login, Ganti Kata Sandi (paksa), Pemberitahuan Privasi, Hasil Absensi, Detail Riwayat, Ajukan Izin/Sakit, Riwayat Pengajuan.
+Halaman lain: Login, Ganti Kata Sandi (paksa), Pemberitahuan Privasi, Hasil Absensi (terkirim, menunggu verifikasi), Detail Riwayat, Ajukan Izin/Sakit, Riwayat Pengajuan.
 
 **Admin** (navigasi: *sidebar* di desktop, menu *hamburger* di mobile):
 
@@ -1170,10 +1263,10 @@ Halaman lain: Login, Ganti Kata Sandi (paksa), Pemberitahuan Privasi, Hasil Abse
 | Dashboard | Dashboard Admin | Ringkasan, sesi hari ini, absensi terbaru |
 | Anggota | Daftar Anggota | Tabel + pencarian + filter, tambah/ubah/nonaktif |
 | Pertemuan | Daftar Pertemuan | Daftar sesi, buat, buka/tutup |
-| Absensi | Data Absensi | Tabel dengan filter, detail foto + peta, koreksi status |
+| Verifikasi | Antrean Verifikasi | Kisi foto absensi Menunggu (penanda jumlah), verifikasi, tolak dengan alasan, verifikasi massal |
+| Absensi | Data Absensi | Tabel dengan filter dan kolom status verifikasi, detail foto + peta, koreksi status |
 | Rekap | Rekap Kehadiran | Per pertemuan dan per anggota |
 | Pengajuan | Pengajuan Izin/Sakit | Daftar pengajuan Menunggu, lampiran, tombol Setujui/Tolak |
-| Periode | Periode/Tahun Ajaran | Daftar periode, buat, aktifkan |
 | Log | Log Aktivitas | Jejak aksi penting dengan filter tanggal, pelaku, aksi |
 | Pengaturan | Pengaturan Lokasi | Peta Leaflet, radius, akurasi, retensi data |
 | Akun | Profil admin | Ganti kata sandi, logout |
@@ -1183,7 +1276,7 @@ Halaman lain: Login, Ganti Kata Sandi (paksa), Pemberitahuan Privasi, Hasil Abse
 Urutan dari yang terpenting:
 
 1. **Anggota:** (a) apakah saya bisa/sudah absen sekarang, (b) hasil absen terakhir, (c) persentase kehadiran, (d) riwayat.
-2. **Admin:** (a) status sesi yang berjalan, (b) siapa yang belum absen, (c) data yang perlu diperiksa, (d) tren/rekap.
+2. **Admin:** (a) status sesi yang berjalan, (b) absensi yang menunggu verifikasi, (c) siapa yang belum absen, (d) data yang perlu diperiksa, (e) tren/rekap.
 
 ### 10.5 Gambaran Dashboard Anggota (mobile, wireframe teks)
 
@@ -1218,7 +1311,7 @@ Urutan dari yang terpenting:
 └─────────────────────────────┘
 ```
 
-Keadaan lain: bila belum ada sesi, kartu berisi "Belum ada sesi aktif" tanpa tombol. Bila sudah absen, kartu berisi hasil ("Kamu sudah absen pukul 15.03 ✔ Hadir").
+Keadaan lain: bila belum ada sesi, kartu berisi "Belum ada sesi aktif" tanpa tombol. Setelah mengirim, kartu berisi "Kamu sudah absen pukul 15.03" dengan chip **Menunggu verifikasi**. Setelah admin memverifikasi, chip berubah menjadi **Terverifikasi** dan status Hadir/Terlambat dihitung. Jika ditolak, kartu menampilkan alasan dan tombol **Absen Ulang** selama sesi Dibuka.
 
 ### 10.6 Gambaran Halaman Absensi (mobile)
 
@@ -1268,6 +1361,8 @@ Tombol Kirim aktif hanya jika foto sudah diambil dan lokasi valid.
 │        │ Rafi       15.22   ⏱ Terlambat 48 m  [🖼]    │
 └────────┴──────────────────────────────────────────────┘
 ```
+
+**Catatan v1.2 untuk dashboard admin:** tambahkan kartu "Menunggu Verifikasi" (angka antrean, mengarah ke Antrean Verifikasi), penanda jumlah pada menu Verifikasi, dan kolom status verifikasi pada tabel "Absensi Terbaru".
 
 ### 10.8 Komponen Umum
 
@@ -1353,9 +1448,9 @@ Format: **Given** (kondisi awal), **When** (tindakan), **Then** (hasil yang diha
 | ID | Kriteria |
 |---|---|
 | AC-03.1 | **Given** ada sesi Dibuka dan anggota belum absen, **When** membuka dashboard, **Then** tombol Absen Sekarang aktif |
-| AC-03.2 | **Given** anggota sudah absen di sesi aktif, **When** membuka dashboard, **Then** tampil hasil absensi dan tombol absen tidak tersedia |
+| AC-03.2 | **Given** anggota sudah absen di sesi aktif dan tidak ditolak, **When** membuka dashboard, **Then** tampil hasil absensi beserta status verifikasi (Menunggu atau Terverifikasi) dan tombol absen tidak tersedia |
 | AC-03.3 | **Given** tidak ada sesi Dibuka, **When** membuka dashboard, **Then** tampil "Belum ada sesi aktif" |
-| AC-03.4 | **Given** anggota punya riwayat, **When** membuka dashboard, **Then** persentase kehadiran sesuai rumus yang disepakati (K-10) |
+| AC-03.4 | **Given** anggota punya riwayat, **When** membuka dashboard, **Then** persentase kehadiran sesuai rumus yang disepakati (K-10), hanya menghitung absensi Terverifikasi, dan jumlah yang masih menunggu verifikasi tampil terpisah |
 
 ### AC-04 Manajemen Anggota (F-04)
 
@@ -1383,6 +1478,7 @@ Format: **Given** (kondisi awal), **When** (tindakan), **Then** (hasil yang diha
 | AC-05.8 | **Given** anggota nonaktif, **When** sesi ditutup, **Then** anggota itu tidak diberi Alpa |
 | AC-05.9 | **Given** sesi Dibuka dan jam selesai sudah lewat, **When** Scheduler berjalan, **Then** sesi Ditutup dengan cara tutup "otomatis" dan Alpa terbentuk |
 | AC-05.10 | **Given** sesi sudah ditutup manual, **When** Scheduler berjalan, **Then** sesi tidak diproses ulang dan tidak ada Alpa ganda |
+| AC-05.11 | **Given** sesi ditutup dan ada absensi Ditolak yang belum dikirim ulang, **When** sesi ditutup, **Then** status kehadirannya menjadi Alpa dan status verifikasi tetap Ditolak. Absensi Menunggu tidak berubah |
 
 ### AC-06 Absensi Foto Selfie (F-06)
 
@@ -1424,8 +1520,8 @@ Format: **Given** (kondisi awal), **When** (tindakan), **Then** (hasil yang diha
 |---|---|
 | AC-09.1 | **Given** anggota punya riwayat, **When** membuka Riwayat, **Then** hanya data miliknya yang tampil, urut terbaru |
 | AC-09.2 | **Given** anggota A, **When** mencoba membuka detail absensi anggota B lewat URL, **Then** ditolak |
-| AC-09.3 | **Given** admin membuka Data Absensi, **When** memfilter berdasarkan pertemuan/tanggal/anggota/status, **Then** hasil sesuai filter |
-| AC-09.4 | **Given** admin membuka detail absensi, **When** halaman dimuat, **Then** tampil foto, titik di peta, jarak, akurasi, dan waktu |
+| AC-09.3 | **Given** admin membuka Data Absensi, **When** memfilter berdasarkan pertemuan/tanggal/anggota/status/status verifikasi, **Then** hasil sesuai filter |
+| AC-09.4 | **Given** admin membuka detail absensi, **When** halaman dimuat, **Then** tampil foto, titik di peta, jarak, akurasi, waktu, dan tombol Verifikasi/Tolak bila masih Menunggu |
 | AC-09.5 | **Given** admin mengoreksi status, **When** menyimpan tanpa alasan, **Then** ditolak. Dengan alasan, **Then** tersimpan beserta pengubah dan waktunya |
 | AC-09.6 | **Given** anggota, **When** mencari tombol ubah/hapus riwayat, **Then** fitur itu tidak tersedia dan permintaan langsung ke server ditolak |
 
@@ -1434,9 +1530,9 @@ Format: **Given** (kondisi awal), **When** (tindakan), **Then** (hasil yang diha
 | ID | Kriteria |
 |---|---|
 | AC-10.1 | **Given** ada beberapa pertemuan ditutup, **When** admin membuka rekap per pertemuan, **Then** jumlah per status sama dengan data pada Data Absensi |
-| AC-10.2 | **Given** admin membuka rekap per anggota, **When** memilih rentang tanggal, **Then** hitungan dan persentase mengikuti rentang itu dan rumus yang disepakati (K-10) |
+| AC-10.2 | **Given** admin membuka rekap per anggota, **When** memilih rentang tanggal, **Then** hitungan dan persentase mengikuti rentang itu dan rumus yang disepakati (K-10), dengan Hadir/Terlambat hanya dari absensi Terverifikasi |
 | AC-10.3 | **Given** pertemuan masih Dibuka, **When** rekap dihitung, **Then** pertemuan itu tidak ikut dalam penyebut persentase |
-| AC-10.4 | **Given** admin membuka rekap, **When** menekan Ekspor CSV, **Then** file CSV terunduh, dapat dibuka di Excel dengan huruf benar, dan isinya sama dengan tampilan rekap (sesuai filter periode dan tanggal) |
+| AC-10.4 | **Given** admin membuka rekap, **When** menekan Ekspor CSV, **Then** file CSV terunduh, dapat dibuka di Excel dengan huruf benar, dan isinya sama dengan tampilan rekap (sesuai filter tanggal), termasuk kolom menunggu verifikasi |
 
 ### AC-11 Pengaturan Lokasi (F-11)
 
@@ -1452,7 +1548,7 @@ Format: **Given** (kondisi awal), **When** (tindakan), **Then** (hasil yang diha
 
 | ID | Kriteria |
 |---|---|
-| AC-12.1 | **Given** anggota sudah absen di sesi, **When** membuka kembali halaman absensi, **Then** hasil sebelumnya tampil dan form tidak aktif |
+| AC-12.1 | **Given** anggota sudah absen di sesi dengan status verifikasi Menunggu atau Terverifikasi, **When** membuka kembali halaman absensi, **Then** hasil sebelumnya tampil dan form tidak aktif |
 | AC-12.2 | **Given** dua permintaan absensi dari anggota yang sama dikirim hampir bersamaan, **When** server memproses, **Then** hanya satu catatan tersimpan |
 | AC-12.3 | **Given** tombol Kirim ditekan, **When** proses berjalan, **Then** tombol nonaktif dan menampilkan indikator proses |
 | AC-12.4 | **Given** sesi ditutup saat anggota sedang di halaman absensi, **When** anggota mengirim, **Then** ditolak dengan pesan sesi ditutup |
@@ -1491,7 +1587,7 @@ Format: **Given** (kondisi awal), **When** (tindakan), **Then** (hasil yang diha
 | AC-15.1 | **Given** sesi Dibuka dan anggota belum absen, **When** mengajukan dengan jenis dan alasan valid, **Then** pengajuan berstatus Menunggu dan tampil di menu Pengajuan admin |
 | AC-15.2 | **Given** pengajuan Menunggu, **When** admin menyetujui, **Then** absensi menjadi Izin/Sakit dengan sumber "pengajuan" dan tampil di riwayat anggota |
 | AC-15.3 | **Given** pengajuan Menunggu, **When** admin menolak dengan catatan, **Then** anggota melihat catatan penolakan dan status absensi tidak berubah |
-| AC-15.4 | **Given** anggota sudah tercatat Hadir/Terlambat, **When** mengajukan pada pertemuan itu, **Then** ditolak |
+| AC-15.4 | **Given** anggota sudah punya absensi Hadir/Terlambat berstatus Menunggu atau Terverifikasi, **When** mengajukan pada pertemuan itu, **Then** ditolak. Jika absensinya Ditolak admin, pengajuan diizinkan |
 | AC-15.5 | **Given** pertemuan sudah Ditutup, **When** anggota mengajukan, **Then** ditolak dengan pesan jelas |
 | AC-15.6 | **Given** sudah ada pengajuan untuk pertemuan itu, **When** anggota mengajukan lagi, **Then** tidak terbentuk duplikat dan anggota ditawari edit/batalkan |
 | AC-15.7 | **Given** pengajuan masih Menunggu saat sesi ditutup, **When** sesi ditutup, **Then** anggota berstatus Alpa. **When** pengajuan kemudian disetujui, **Then** Alpa berubah menjadi Izin/Sakit |
@@ -1499,16 +1595,26 @@ Format: **Given** (kondisi awal), **When** (tindakan), **Then** (hasil yang diha
 | AC-15.9 | **Given** anggota A, **When** membuka pengajuan atau lampiran anggota B lewat URL, **Then** ditolak |
 | AC-15.10 | **Given** pengajuan baru dikirim, **When** belum diputuskan pengurus, **Then** rekap dan persentase kehadiran tidak berubah |
 
-### AC-16 Periode (F-14)
+### AC-16 Verifikasi Absensi (F-14)
 
 | ID | Kriteria |
 |---|---|
-| AC-16.1 | **Given** admin membuat periode valid, **When** mengaktifkannya, **Then** hanya periode itu yang berstatus aktif |
-| AC-16.2 | **Given** rentang tanggal tumpang tindih dengan periode lain, **When** menyimpan, **Then** ditolak |
-| AC-16.3 | **Given** tidak ada periode aktif, **When** admin membuat pertemuan, **Then** ditolak dengan pesan membuat/mengaktifkan periode |
-| AC-16.4 | **Given** periode aktif, **When** pertemuan baru disimpan, **Then** otomatis masuk periode aktif |
-| AC-16.5 | **Given** periode sudah punya pertemuan, **When** admin menghapus, **Then** ditolak |
-| AC-16.6 | **Given** ada dua periode, **When** membuka rekap, **Then** default periode aktif dan angka berubah sesuai periode yang dipilih. Mengganti periode aktif tidak mengubah data lama |
+| AC-16.1 | **Given** anggota mengirim absensi yang lolos validasi, **When** tersimpan, **Then** status verifikasi Menunggu, layar hasil menyatakan "terkirim, menunggu verifikasi", dan belum masuk hitungan hadir pada rekap |
+| AC-16.2 | **Given** ada absensi Menunggu, **When** admin membuka Antrean Verifikasi, **Then** absensi tampil dengan foto, titik di peta, jarak, akurasi, dan waktu, dan jumlah antrean tampil di menu dan dashboard |
+| AC-16.3 | **Given** absensi Menunggu, **When** admin menekan Verifikasi, **Then** status menjadi Terverifikasi, pelaku dan waktu tersimpan, dan absensi mulai dihitung di rekap dan persentase anggota |
+| AC-16.4 | **Given** absensi Menunggu, **When** admin menolak tanpa alasan, **Then** ditolak validasi. Dengan alasan, **Then** status menjadi Ditolak dan anggota melihat alasannya |
+| AC-16.5 | **Given** absensi Ditolak dan sesi masih Dibuka, **When** anggota mengirim ulang, **Then** baris yang sama diperbarui (tidak ada duplikat), status kembali Menunggu, foto lama terhapus, dan waktu serta status Hadir/Terlambat dihitung ulang dari waktu kirim ulang |
+| AC-16.6 | **Given** anggota sudah mengirim 3 kali pada satu pertemuan, **When** mencoba kirim lagi, **Then** ditolak dengan pesan hubungi pengurus |
+| AC-16.7 | **Given** absensi Ditolak dan sesi ditutup tanpa kirim ulang, **When** sesi ditutup, **Then** status kehadiran menjadi Alpa, status verifikasi tetap Ditolak, dan alasan tetap terlihat |
+| AC-16.8 | **Given** absensi Menunggu dan sesi ditutup, **When** sesi ditutup, **Then** absensi tetap Menunggu (bukan Alpa) dan masih dapat diverifikasi setelahnya |
+| AC-16.9 | **Given** admin mencentang beberapa absensi Menunggu, **When** menekan Verifikasi Terpilih dan mengonfirmasi, **Then** semuanya Terverifikasi dan log memuat satu entri dengan jumlah dan daftar id |
+| AC-16.10 | **Given** dua admin memproses absensi yang sama hampir bersamaan, **When** admin kedua menekan Verifikasi atau Tolak, **Then** ditolak dengan pesan sudah diproses dan keputusan pertama tidak tertimpa |
+| AC-16.11 | **Given** Izin/Sakit dari pengajuan disetujui, Alpa otomatis, atau input manual pengurus, **When** tersimpan, **Then** langsung Terverifikasi dan tidak masuk Antrean Verifikasi |
+| AC-16.12 | **Given** anggota, **When** membuka Antrean Verifikasi atau mengirim permintaan verifikasi lewat URL, **Then** ditolak |
+| AC-16.13 | **Given** admin memverifikasi atau menolak, **When** selesai, **Then** tercatat di log aktivitas dengan pelaku, waktu, keputusan, dan alasan penolakan |
+| AC-16.14 | **Given** absensi Menunggu yang lebih lama dari masa retensi, **When** tugas retensi berjalan, **Then** foto dan koordinatnya tidak dihapus |
+| AC-16.15 | **Given** absensi dikirim pukul 15.40 (Terlambat) dan diverifikasi keesokan harinya, **When** diverifikasi, **Then** status kehadiran tetap Terlambat |
+| AC-16.16 | **Given** anggota punya absensi Menunggu pada pertemuan yang sudah ditutup, **When** persentase dihitung, **Then** absensi itu tidak dihitung hadir dan tampil sebagai "menunggu verifikasi" |
 
 ### AC-17 Log Aktivitas dan Log Penolakan (F-15)
 
@@ -1589,7 +1695,7 @@ Tahap 3 dan 4 dapat berjalan paralel jika tim cukup besar.
 
 | Item | Isi |
 |---|---|
-| Kegiatan | Instalasi Laravel dan konfigurasi MySQL. Autentikasi dan middleware peran. CRUD anggota. Manajemen pertemuan (buka/tutup, Alpa otomatis). Logika penerimaan absensi (validasi, jarak Haversine, status Hadir/Terlambat, transaksi, penyimpanan foto privat). Rekap dan perhitungan persentase. Pengaturan lokasi. Pengajuan izin/sakit (F-13), periode (F-14), log aktivitas dan log penolakan (F-15), pemberitahuan privasi dan retensi (F-16). Penjadwalan (Laravel Scheduler) untuk penutupan sesi otomatis dan penghapusan data sesuai retensi. Zona waktu aplikasi diatur ke Asia/Jakarta. Penulisan *Form Request* validasi |
+| Kegiatan | Instalasi Laravel dan konfigurasi MySQL. Autentikasi dan middleware peran. CRUD anggota. Manajemen pertemuan (buka/tutup, Alpa otomatis). Logika penerimaan absensi (validasi, jarak Haversine, status Hadir/Terlambat, transaksi, penyimpanan foto privat). Rekap dan perhitungan persentase. Pengaturan lokasi. Pengajuan izin/sakit (F-13), verifikasi absensi dengan antrean dan verifikasi massal (F-14), log aktivitas dan log penolakan (F-15), pemberitahuan privasi dan retensi (F-16). Penjadwalan (Laravel Scheduler) untuk penutupan sesi otomatis dan penghapusan data sesuai retensi. Zona waktu aplikasi diatur ke Asia/Jakarta. Penulisan *Form Request* validasi |
 | Keluaran | Backend berfungsi, dapat diuji lewat form sementara atau alat uji API |
 | Kriteria selesai | AC-01, AC-04, AC-05, AC-08, AC-09 (sisi server), AC-10, AC-11, AC-12, AC-15 sampai AC-19 lulus di level backend |
 
@@ -1597,7 +1703,7 @@ Tahap 3 dan 4 dapat berjalan paralel jika tim cukup besar.
 
 | Item | Isi |
 |---|---|
-| Kegiatan | Layout Blade (admin dan anggota). Komponen Tailwind (kartu, tabel adaptif, badge, modal, toast). Halaman login, dashboard admin dan anggota, anggota, pertemuan, absensi, rekap, riwayat, pengaturan, pengajuan izin/sakit, periode, log aktivitas, dan pemberitahuan privasi. Peta Leaflet di pengaturan dan detail absensi |
+| Kegiatan | Layout Blade (admin dan anggota). Komponen Tailwind (kartu, tabel adaptif, badge, modal, toast). Halaman login, dashboard admin dan anggota, anggota, pertemuan, absensi, rekap, riwayat, pengaturan, pengajuan izin/sakit, antrean verifikasi, log aktivitas, dan pemberitahuan privasi. Peta Leaflet di pengaturan dan detail absensi |
 | Keluaran | Seluruh halaman tampil sesuai desain, responsif |
 | Kriteria selesai | AC-02, AC-03 lulus. AC-14.2 (responsif) lulus |
 
@@ -1650,7 +1756,7 @@ Butir yang kolom keputusannya berisi **Diputuskan v1.1** sudah ditetapkan. Butir
 | K-07 | Radius absensi default | Contoh 100 m. Sesuaikan luas sekolah dan uji lapangan | Penerimaan/penolakan absensi | _(belum)_ |
 | K-08 | Percobaan ditolak (di luar radius) dicatat sebagai log? | Ya, tabel log terpisah, atau tidak dicatat | Tambahan tabel | **Diputuskan v1.1:** dicatat di `log_penolakan` (F-15) |
 | K-09 | Perlu ekspor rekap? Format apa? | CSV/Excel atau PDF (pilih satu), atau ditunda | Fitur F-10 | **Diputuskan v1.1:** CSV dulu, Excel/PDF ditunda |
-| K-10 | Rumus persentase kehadiran | (Hadir + Terlambat) / total pertemuan ditutup (usulan). Alternatif: Izin/Sakit dikeluarkan dari penyebut | Angka di dashboard dan rekap | **Diputuskan v1.1:** (Hadir + Terlambat) / pertemuan Ditutup |
+| K-10 | Rumus persentase kehadiran | (Hadir + Terlambat) / total pertemuan ditutup (usulan). Alternatif: Izin/Sakit dikeluarkan dari penyebut | Angka di dashboard dan rekap | **Diputuskan v1.1, diperbarui v1.2:** (Hadir + Terlambat yang Terverifikasi) / pertemuan Ditutup |
 | K-11 | Penanda otomatis pola mencurigakan? | Ya sederhana, atau ditunda | Kolom `perlu_diperiksa`, kompleksitas | _(belum)_ |
 | K-12 | Tambah kode/QR pertemuan sebagai bukti kehadiran fisik? | Tidak untuk versi awal (di luar cakupan), pertimbangkan versi lanjutan | Penambahan fitur | **Ditunda**, tidak masuk v1.1 |
 | K-13 | Anggota boleh mengajukan Izin/Sakit lewat aplikasi? | Tidak, hanya pengurus yang menginput (usulan awal), atau ada fitur pengajuan | Fitur baru, alur persetujuan | **Diputuskan v1.1:** anggota mengajukan, pengurus memutuskan (F-13) |
@@ -1660,6 +1766,7 @@ Butir yang kolom keputusannya berisi **Diputuskan v1.1** sudah ditetapkan. Butir
 | K-17 | Hosting yang dipakai | VPS (fleksibel) atau shared hosting. Pertimbangkan biaya, dukungan Laravel, dan HTTPS | Tahap 8 | _(belum)_. **Syarat baru v1.1:** hosting harus mendukung cron job untuk Scheduler |
 | K-18 | Persetujuan pengumpulan foto/lokasi siswa | Mengikuti kebijakan sekolah (perlu persetujuan sekolah dan/atau orang tua) | Kepatuhan dan privasi | _(belum)_ |
 | K-19 | Batas waktu pengajuan izin/sakit | Sampai sesi ditutup (default v1.1), atau paling lambat H-1, atau sebelum jam mulai | Aturan F-13 | _(belum)_ |
+| K-20 | Batas kirim ulang absensi yang ditolak admin | Maksimal 3 pengiriman per pertemuan (default v1.2) | Aturan F-14 dan kolom `jumlah_kirim` | _(belum)_ |
 
 ---
 
@@ -1688,7 +1795,9 @@ Butir yang kolom keputusannya berisi **Diputuskan v1.1** sudah ditetapkan. Butir
 | UAT | User Acceptance Testing, uji coba oleh pengguna sebenarnya |
 | Scheduler / Cron | Mekanisme yang menjalankan tugas otomatis pada jadwal tertentu (Laravel Scheduler dipicu satu cron job tiap menit) |
 | Retensi | Aturan berapa lama data disimpan sebelum dihapus |
-| Periode | Tahun ajaran, pengelompok pertemuan dan rekap |
+| Verifikasi | Pemeriksaan admin atas foto dan lokasi absensi mandiri sebelum dihitung hadir (F-14) |
+| Antrean Verifikasi | Daftar absensi berstatus Menunggu yang perlu diperiksa admin |
+| Status verifikasi | Menunggu, Terverifikasi, atau Ditolak. Terpisah dari status kehadiran |
 | WIB | Waktu Indonesia Barat (Asia/Jakarta, UTC+7) |
 
 ---
